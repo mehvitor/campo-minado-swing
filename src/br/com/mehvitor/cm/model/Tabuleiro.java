@@ -2,17 +2,17 @@ package br.com.mehvitor.cm.model;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 
-import br.com.mehvitor.cm.excecao.ExplosaoException;
-
-public class Tabuleiro {
+public class Tabuleiro implements CampoObservador{
 
 	private int linhas;
 	private int colunas;
 	private int minas;
 	
 	private final List<Campo> campos = new ArrayList<>();
+	private final List<Consumer<ResultadoEvento>> observadores = new ArrayList<>();
 	
 	public Tabuleiro(int linhas, int colunas, int minas) {
 		this.linhas = linhas;
@@ -24,18 +24,22 @@ public class Tabuleiro {
 		sortearMinas();
 	}
 	
+	public void registrarObservador(Consumer<ResultadoEvento> observador) {
+		observadores.add(observador);
+	}
+	
+	private void notificarObservadores(boolean resultado) {
+		observadores.stream()
+		.forEach(o -> o.accept(new ResultadoEvento(resultado)));
+	}
+	
 	public void abrirCampo(int linha, int coluna) {
-		try {
 			campos.parallelStream()
 			.filter(c -> c.getLinha() == linha && c.getColuna() == coluna)
 			.findFirst()
-			.ifPresent(c -> c.abrirCampo());;
-		} catch (ExplosaoException e) {
-			campos.forEach(c -> c.setCampoAberto(true));
-			throw e;
-		}
+			.ifPresent(c -> c.abrirCampo());
 	}
-
+	
 	public void alterMarcacao(int linha, int coluna) {
 		campos.parallelStream()
 		.filter(c -> c.getLinha() == linha && c.getColuna() == coluna)
@@ -46,7 +50,9 @@ public class Tabuleiro {
 	private void gerarCampos() {
 		for (int i = 0; i < linhas; i++) {
 			for (int j = 0; j < colunas; j++) {
-				campos.add(new Campo(i, j));
+				Campo campo = new Campo(i, j);
+				campo.registrarObservador(this);
+				campos.add(campo);
 			}
 			
 		}
@@ -87,37 +93,20 @@ public class Tabuleiro {
 		sortearMinas();
 	}
 
-
 	@Override
-	public String toString() {
-		StringBuilder sb = new StringBuilder();
-		
-		sb.append("   ");
-		for (int c = 0; c < colunas; c++) {
-			sb.append(" ");
-			sb.append(c);
-			sb.append(" ");
+	public void eventoOcorreu(Campo campo, CampoEvento evento) {
+		if(evento == CampoEvento.EXPLODIR) {
+			mostrarMinas();
+			notificarObservadores(false);
+		} else if(objetivoAlcancado()) {
+			notificarObservadores(true);
 		}
-		
-		sb.append("\n");
-		
-		int i = 0;
-		for (int l = 0; l < linhas; l++) {
-			sb.append(" ");
-			sb.append(l);
-			sb.append(" ");
-			for (int c = 0; c < colunas; c++) {
-				sb.append(" ");
-				sb.append(campos.get(i));
-				sb.append(" ");
-				i++;
-			}
-			sb.append("\n");
-		}
-		
-		
-		return sb.toString();
 	}
 	
-	
+	private void mostrarMinas() {
+		campos.stream()
+		.filter(c -> c.isMinado())
+		.forEach(c -> c.setCampoAberto(true));
+	}
+
 }

@@ -3,8 +3,6 @@ package br.com.mehvitor.cm.model;
 import java.util.ArrayList;
 import java.util.List;
 
-import br.com.mehvitor.cm.excecao.ExplosaoException;
-
 public class Campo {
 
 	private final int linha;
@@ -15,10 +13,20 @@ public class Campo {
 	private boolean campoMarcado = false;
 	
 	private List<Campo> vizinhos = new ArrayList<>();
+	private List<CampoObservador> observadores = new ArrayList<>();
 	
 	Campo(int linha, int coluna) {
 		this.linha = linha;
 		this.coluna = coluna;
+	}
+	
+	public void registrarObservador(CampoObservador observador) {
+		observadores.add(observador);
+	}
+	
+	private void notificarObservadores(CampoEvento evento) {
+		observadores.stream()
+		.forEach(o -> o.eventoOcorreu(this, evento));
 	}
 	
 	boolean adicionarVizinho(Campo vizinho) {
@@ -44,16 +52,25 @@ public class Campo {
 	void alterMarcacao() {
 		if(!campoAberto) {
 			campoMarcado = !campoMarcado; 
+			
+			if(campoMarcado) {
+				notificarObservadores(CampoEvento.MARCAR);
+			} else {
+				notificarObservadores(CampoEvento.DESCARMAR);
+			}
 		}
 	}
 	
 	boolean abrirCampo() {
 		if(!campoAberto && !campoMarcado) {
-			campoAberto = true;
 			
 			if(minado) {
-				throw new ExplosaoException();
+				notificarObservadores(CampoEvento.EXPLODIR);
+				return true;
 			}
+			
+			setCampoAberto(true);
+			
 			
 			if(vizinhaSegura()) {
 				vizinhos.forEach(v -> v.abrirCampo());
@@ -83,10 +100,15 @@ public class Campo {
 	
 	public boolean isCampoAberto() {
 		return campoAberto;
+	
 	}
 
 	void setCampoAberto(boolean campoAberto) {
 		this.campoAberto = campoAberto;
+		
+		if(campoAberto) {
+			notificarObservadores(CampoEvento.ABRIR);
+		}
 	}
 
 	public boolean isAberto() {
@@ -123,20 +145,6 @@ public class Campo {
 		minado = false;	
 	}
 
-	@Override
-	public String toString() {
-		if(campoMarcado) {
-			return "X";
-		} else if(campoAberto && minado) {
-			return "*";
-		} else if(campoAberto && minasNaVizinhanca() > 0) {
-			return Long.toString(minasNaVizinhanca());
-		} else if(campoAberto) {
-			return " ";
-		} else {
-			return "?";
-		}
-	}
 	
 	
 }
